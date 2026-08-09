@@ -77,15 +77,15 @@ select = [
     "PTH", # pathlib
     "RUF",
 ]
-ignore = ["E501"]  
+ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ARG"]
 
 "notebooks/*.ipynb" = [
-    "E402", 
-    "B018",  
-    "F401",  
+    "E402",
+    "B018",
+    "F401",
 ]
 
 [tool.ruff.format]

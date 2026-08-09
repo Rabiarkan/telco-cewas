@@ -31,9 +31,7 @@ def healthcheck() -> None:
     expected = {"raw", "core", "ml", "genai"}
     with engine.connect() as conn:
         version = conn.execute(text("SELECT version()")).scalar_one()
-        rows = conn.execute(
-            text("SELECT schema_name FROM information_schema.schemata")
-        ).scalars()
+        rows = conn.execute(text("SELECT schema_name FROM information_schema.schemata")).scalars()
         found = expected & set(rows)
         has_vector = conn.execute(
             text("SELECT count(*) FROM pg_extension WHERE extname = 'vector'")

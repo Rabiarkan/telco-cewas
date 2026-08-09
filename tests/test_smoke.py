@@ -40,5 +40,5 @@ def test_mlflow_reachable() -> None:
     import urllib.request
 
     url = get_settings().mlflow_tracking_uri.rstrip("/") + "/health"
-    with urllib.request.urlopen(url, timeout=10) as r:  # noqa: S310
+    with urllib.request.urlopen(url, timeout=10) as r:
         assert r.status == 200
