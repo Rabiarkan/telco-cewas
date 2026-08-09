@@ -1,0 +1,127 @@
+# Both Devcontainer and the CLI use the same stack
+# Default services (app, postgres, mlflow) always gets back up
+# ml / genai profiles only run when explicitly requested
+name: telco-cewas
+
+x-pg-env: &pg-env
+  POSTGRES_USER: ${POSTGRES_USER:-telco}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-telco}
+  POSTGRES_DB: ${POSTGRES_DB:-telco}
+
+x-app-env: &app-env
+  # SQLAlchemy conn
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-telco}:${POSTGRES_PASSWORD:-telco}@postgres:5432/${POSTGRES_DB:-telco}
+  PGHOST: postgres
+  PGPORT: "5432"
+  PGUSER: ${POSTGRES_USER:-telco}
+  PGPASSWORD: ${POSTGRES_PASSWORD:-telco}
+  PGDATABASE: ${POSTGRES_DB:-telco}
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  PYTHONPATH: /workspaces/telco-cewas/src
+
+services:
+  # app (dev)
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.app
+    image: telco-cewas/app:dev
+    command: sleep infinity
+    working_dir: /workspaces/telco-cewas
+    environment:
+      <<: *app-env
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - .:/workspaces/telco-cewas:cached
+      # Docker-outside-of-Docker pattern
+      - /var/run/docker.sock:/var/run/docker-host.sock
+      - uv-cache:/home/vscode/.cache/uv
+    ports:
+      - "8000:8000" # FastAPI
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [core]
+
+  # postgres
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      <<: *pg-env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-telco} -d ${POSTGRES_DB:-telco}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks: [core]
+
+  # mlflow
+  mlflow:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.mlflow
+    image: telco-cewas/mlflow:dev
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-telco}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-telco}
+      MLFLOW_BACKEND_DB: ${MLFLOW_BACKEND_DB:-mlflow}
+      MLFLOW_ARTIFACTS_DESTINATION: /mlartifacts
+    volumes:
+      - mlartifacts:/mlartifacts
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks: [core]
+
+  # profile: genai
+  api:
+    profiles: ["genai"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.app
+    image: telco-cewas/app:dev
+    working_dir: /workspaces/telco-cewas
+    command: >
+      bash -lc "uv sync --group genai &&
+                uv run uvicorn telco_cewas.api.main:app --host 0.0.0.0 --port 8080 --reload"
+    environment:
+      <<: *app-env
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - .:/workspaces/telco-cewas:cached
+      - uv-cache:/home/vscode/.cache/uv
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [core]
+
+volumes:
+  pgdata:
+  mlartifacts:
+  uv-cache:
+
+networks:
+  core:
+    driver: bridge

@@ -1,0 +1,58 @@
+{
+    "name": "telco-cewas",
+    "dockerComposeFile": ["../docker-compose.yml"],
+    "service": "app",
+    "workspaceFolder": "/workspaces/telco-cewas",
+  
+    // default services
+    "runServices": ["app", "postgres", "mlflow"],
+  
+    "features": {
+      // Sibling container management: Run  'docker ps', 'docker compose up' in the shell
+      // not DinD -> no privileged accesss
+      "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+        "moby": true,
+        "installDockerBuildx": true
+      }
+    },
+  
+    "forwardPorts": ["mlflow:5000", "postgres:5432", "app:8000"],
+    "portsAttributes": {
+      "mlflow:5000": { "label": "MLflow UI", "onAutoForward": "notify" },
+      "postgres:5432": { "label": "Postgres", "onAutoForward": "silent" },
+      "app:8000": { "label": "API", "onAutoForward": "silent" }
+    },
+  
+    "initializeCommand": "cp -n .env.example .env 2>/dev/null || true",
+    "postCreateCommand": "make setup",
+    "postStartCommand": "make ps",
+  
+    "remoteUser": "vscode",
+    "shutdownAction": "stopCompose",
+  
+    "customizations": {
+      "vscode": {
+        "extensions": [
+          "charliermarsh.ruff",
+          "ms-python.python",
+          "ms-toolsai.jupyter",
+          "tamasfe.even-better-toml",
+          "ms-azuretools.vscode-docker",
+          "mtxr.sqltools",
+          "mtxr.sqltools-driver-pg"
+        ],
+        "settings": {
+          "python.defaultInterpreterPath": "/opt/venv/bin/python",
+          "python.terminal.activateEnvironment": false,
+          "jupyter.notebookFileRoot": "${workspaceFolder}",
+          "notebook.output.textLineLimit": 60,
+          "notebook.formatOnSave.enabled": true,
+          "notebook.codeActionsOnSave": { "notebook.source.fixAll": "explicit" },
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": { "source.fixAll.ruff": "explicit" },
+          "[python]": { "editor.defaultFormatter": "charliermarsh.ruff" },
+          "files.insertFinalNewline": true
+        }
+      }
+    }
+  }

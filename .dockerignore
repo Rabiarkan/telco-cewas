@@ -1,0 +1,19 @@
+*
+
+# Image
+!docker/
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+
+# allowlist
+**/__pycache__/
+**/*.py[cod]
+**/.ipynb_checkpoints/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+**/.DS_Store
+**/*.egg-info/
+**/.venv/
