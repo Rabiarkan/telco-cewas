@@ -7,12 +7,5 @@ CREATE SCHEMA IF NOT EXISTS raw;
 CREATE SCHEMA IF NOT EXISTS core;
 CREATE SCHEMA IF NOT EXISTS ml;
 CREATE SCHEMA IF NOT EXISTS genai;
-
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
-CREATE TABLE IF NOT EXISTS public.applied_migrations (
-    filename    text PRIMARY KEY,
-    checksum    text NOT NULL,
-    applied_at  timestamptz NOT NULL DEFAULT now()
-);

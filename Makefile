@@ -12,9 +12,12 @@ help:
 
 # environment
 setup: ## Initial setup (postCreateCommand): base + dev dependencies
-	$(UV) sync --group dev
-	$(UV) run pre-commit install || true
-	@echo "✅ setup done. Start the services with 'make up'."
+	$(COMPOSE) up -d postgres mlflow
+	@until pg_isready -q; do sleep 1; done
+	@psql -q -f db/schema.sql
+	@echo "✅ postgres + mlflow ready, schema applied."
+	@$(MAKE) --no-print-directory ps
+
 
 sync: ## Base + Synchronize major dependencies
 	$(UV) sync --group dev
@@ -33,6 +36,9 @@ sync-genai: ## Add GenAI dependencies (llm client, pgvector, fastapi)
 # services
 up: ## core stack: postgres + mlflow
 	$(COMPOSE) up -d postgres mlflow
+	@until pg_isready -q 2>/dev/null; do sleep 1; done
+	@psql -q -f db/schema.sql
+	@echo "✅ postgres + mlflow ready, schema applied."
 	@$(MAKE) --no-print-directory ps
 
 down: ## Stop all services (data is preserved, dont close app service)
