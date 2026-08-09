@@ -35,8 +35,6 @@ services:
         required: false
     volumes:
       - .:/workspaces/telco-cewas:cached
-      # Docker-outside-of-Docker pattern
-      - /var/run/docker.sock:/var/run/docker-host.sock
       - uv-cache:/home/vscode/.cache/uv
     ports:
       - "8000:8000" # FastAPI

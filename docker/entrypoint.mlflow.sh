@@ -24,6 +24,18 @@ done
 
 mkdir -p "${ARTIFACT_ROOT}"
 
+DB_EXISTS="$(psql -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d postgres -tAc \
+  "SELECT 1 FROM pg_database WHERE datname = '${MLFLOW_BACKEND_DB}'" || true)"
+
+if [ "${DB_EXISTS}" != "1" ]; then
+  echo "[mlflow] '${MLFLOW_BACKEND_DB}' database not exist, creating ..."
+  psql -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d postgres \
+    -c "CREATE DATABASE \"${MLFLOW_BACKEND_DB}\"" || true
+else
+  echo "[mlflow] '${MLFLOW_BACKEND_DB}' database already exists, skipping creation."
+fi
+
+
 BACKEND_URI="postgresql+psycopg2://${PGUSER}:${PGPASSWORD}@${PGHOST}:${PGPORT}/${MLFLOW_BACKEND_DB}"
 echo "[mlflow] Backend store: postgresql://${PGUSER}@${PGHOST}:${PGPORT}/${MLFLOW_BACKEND_DB}"
 echo "[mlflow] Artifact root: ${ARTIFACT_ROOT}"

@@ -1,4 +1,4 @@
-# Dev container base image, 
+# Dev container base image,
 # Dependencies are installed at runtime using UV to /opt/venv, not to the image
 FROM python:3.12-slim-bookworm
 
@@ -21,12 +21,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         make \
         postgresql-client \
         procps \
+        sudo \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /usr/local/bin/uv
 
 RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && useradd --uid ${USER_UID} --gid ${USER_GID} --create-home --shell /bin/bash ${USERNAME} \
+    && echo "${USERNAME} ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} \
+    && chmod 0440 /etc/sudoers.d/${USERNAME} \
     && mkdir -p /opt/venv ${UV_CACHE_DIR} \
     && chown -R ${USER_UID}:${USER_GID} /opt/venv /home/${USERNAME}
 
