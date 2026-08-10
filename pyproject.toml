@@ -23,16 +23,13 @@ telco = "telco_cewas.cli:app"
 #   ml          -> ml      | make sync-ml
 #   genai       -> genai   | make sync-genai
 [dependency-groups]
-dev = [
-    "ruff>=0.8",
-    "pytest>=8.3",
-    "pytest-cov>=6.0",
-    "pre-commit>=4.0",
-]
+dev = ["ruff>=0.8", "pytest>=8.3", "pytest-cov>=6.0", "pre-commit>=4.0"]
 ml = [
     "scikit-learn>=1.5",
     "lightgbm>=4.5",
     "shap>=0.46",
+    "numba>=0.60",
+    "numpy>=1.26",
     "optuna>=4.1",
     "mlflow>=2.22,<3",
     "matplotlib>=3.9",
@@ -82,11 +79,7 @@ ignore = ["E501"]
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ARG"]
 
-"notebooks/*.ipynb" = [
-    "E402",
-    "B018",
-    "F401",
-]
+"notebooks/*.ipynb" = ["E402", "B018", "F401"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -95,6 +88,4 @@ quote-style = "double"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
-markers = [
-    "integration: requires live Postgres/MLflow instance",
-]
+markers = ["integration: requires live Postgres/MLflow instance"]

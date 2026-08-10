@@ -11,13 +11,10 @@ help:
 	 | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
 # environment
-setup: ## Initial setup (postCreateCommand): base + dev dependencies
-	$(COMPOSE) up -d postgres mlflow
-	@until pg_isready -q; do sleep 1; done
-	@psql -q -f db/schema.sql
-	@echo "✅ postgres + mlflow ready, schema applied."
-	@$(MAKE) --no-print-directory ps
-
+setup: ## Initial setup (postCreateCommand): base + dev dependencies + git hooks
+	$(UV) sync --group dev
+	$(UV) run pre-commit install
+	@echo "✅ setup done. Start the services with 'make up'."
 
 sync: ## Base + Synchronize major dependencies
 	$(UV) sync --group dev
@@ -93,32 +90,36 @@ lock-check: ## Is the lock up to date? (CI)
 
 # ------ verify -------
 verify: ## Phase 0 eligibility criteria
-	@echo "── 1/8 services ────────────────────────────────"
+	@echo "── 1/9 services ────────────────────────────────"
 	@$(COMPOSE) ps --format "{{.Service}}: {{.Status}}"
-	@echo "── 2/8 DooD (sibling container access) ─────────"
+	@echo "── 2/9 DooD (sibling container access) ─────────"
 	@docker ps -q >/dev/null && echo "  ✅ docker socket is accessible"
-	@echo "── 3/8 postgres schemas ───────────────────────"
+	@echo "── 3/9 postgres schemas ───────────────────────"
 	@psql -tAc "SELECT string_agg(schema_name, ', ' ORDER BY schema_name) \
 	  FROM information_schema.schemata \
 	  WHERE schema_name IN ('raw','core','ml','genai')" \
 	  | grep -q "core, genai, ml, raw" \
 	  && echo "  ✅ raw, core, ml, genai" \
 	  || (echo "  ❌ missing schemas -> make nuke && make up"; exit 1)
-	@echo "── 4/8 extensions ───────────────────────────"
+	@echo "── 4/9 extensions ───────────────────────────"
 	@psql -tAc "SELECT string_agg(extname, ', ' ORDER BY extname) \
 	  FROM pg_extension WHERE extname IN ('vector','pg_trgm')" \
 	  | grep -q "pg_trgm, vector" \
 	  && echo "  ✅ vector, pg_trgm" \
 	  || (echo "  ❌ missing extension -> make nuke && make up"; exit 1)
-	@echo "── 5/8 mlflow backend database ─────────────────"
+	@echo "── 5/9 mlflow backend database ─────────────────"
 	@psql -tAc "SELECT 1 FROM pg_database WHERE datname='mlflow'" | grep -q 1 \
 	  && echo "  ✅ mlflow database exist" || (echo "  ❌ missing"; exit 1)
-	@echo "── 6/8 mlflow http ─────────────────────────────"
+	@echo "── 6/9 mlflow http ─────────────────────────────"
 	@curl -fsS http://mlflow:5000/health >/dev/null \
 	  && echo "  ✅ http://mlflow:5000/health" || (echo "  ❌ unreachable"; exit 1)
-	@echo "── 7/8 app config + connection ──────────────"
+	@echo "── 7/9 app config + connection ──────────────"
 	@$(UV) run telco healthcheck
-	@echo "── 8/8 lint + test ─────────────────────────────"
+	@echo "── 8/9 pre-commit hook ─────────────────────────"
+	@test -x .git/hooks/pre-commit \
+	  && echo "  ✅ hook installed" \
+	  || (echo "  ❌ not installed -> make setup"; exit 1)
+	@echo "── 9/9 lint + test ─────────────────────────────"
 	@$(UV) run ruff check . && echo "  ✅ ruff clean"
 	@$(UV) run pytest -q
 	@echo ""

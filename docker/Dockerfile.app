@@ -15,13 +15,15 @@ ENV PYTHONUNBUFFERED=1 \
     PATH=/opt/venv/bin:$PATH
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        git \
-        curl \
-        ca-certificates \
-        make \
-        postgresql-client \
-        procps \
-        sudo \
+    git \
+    curl \
+    ca-certificates \
+    make \
+    postgresql-client \
+    procps \
+    sudo \
+    libgomp1 \
+    # not exist slim image -> "libgomp.so.1: cannot open shared object file". the same as scikit-learn and XGBoost
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /usr/local/bin/uv
