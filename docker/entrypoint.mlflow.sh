@@ -12,11 +12,11 @@ ARTIFACT_ROOT="${MLFLOW_ARTIFACTS_DESTINATION:-/mlartifacts}"
 echo "[mlflow] Waiting for Postgres: ${PGHOST}:${PGPORT} ..."
 for i in $(seq 1 60); do
   if pg_isready -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -q; then
-    echo "[mlflow] Postgres is ready (${i}. test)."
+    echo "[mlflow] Postgres is ready (attempt ${i})."
     break
   fi
   if [ "${i}" -eq 60 ]; then
-    echo "[mlflow] ERROR: Postgres wasn't ready within 120s." >&2
+    echo "[mlflow] ERROR: Postgres not ready within 120s." >&2
     exit 1
   fi
   sleep 2

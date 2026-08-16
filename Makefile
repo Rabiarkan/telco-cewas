@@ -1,36 +1,39 @@
+# Single command surface. Works identically inside the dev container and from the host.
 SHELL := /bin/bash
+PROJECT := telco-cewas
 COMPOSE := docker compose
 UV := uv
 
 .DEFAULT_GOAL := help
-.PHONY: help setup sync ml sync-ml sync-genai up down restart ps logs logs-mlflow verify lock lock-check \
-        shell db db-ready genai-up genai-down lint fmt test check clean nuke
+.PHONY: help setup sync ml sync-ml sync-genai up down restart ps logs logs-mlflow \
+        shell db db-ready genai-up genai-down lint fmt test check lock lock-check \
+        verify clean nuke
 
-help:
+help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 	 | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-# environment
-setup: ## Initial setup (postCreateCommand): base + dev dependencies + git hooks
+# --------- environment ---------
+setup: ## First-time setup: base + dev dependencies + git hooks
 	$(UV) sync --group dev
 	$(UV) run pre-commit install
-	@echo "✅ setup done. Start the services with 'make up'."
+	@echo "✅ setup complete. Run 'make up' to start the services."
 
-sync: ## Base + Synchronize major dependencies
+sync: ## Sync base + dev dependencies
 	$(UV) sync --group dev
 
-sync-ml: ml ## sync-ml -> ml
+sync-ml: ml ## Alias for `make ml`
 
-ml: ## ML dependencies + save the notebook kernel
+ml: ## ML dependencies + register the notebook kernel
 	$(UV) sync --group ml
 	$(UV) run python -m ipykernel install --user \
 		--name telco-cewas --display-name "Telco CEWAS (ml)"
-	@echo "✅ The notebook kernel is ready. Open the .ipynb file in VS Code -> kernel: 'Telco CEWAS (ml)'"
+	@echo "✅ The notebook kernel is ready. Open a .ipynb and pick 'Telco CEWAS (ml)'."
 
-sync-genai: ## Add GenAI dependencies (llm client, pgvector, fastapi)
+sync-genai: ## GenAI dependencies (LLM client, pgvector, fastapi)
 	$(UV) sync --group genai
 
-# services
+# --------- services, Start services and apply the schema ---------
 up: ## core stack: postgres + mlflow
 	$(COMPOSE) up -d postgres mlflow
 	@until pg_isready -q 2>/dev/null; do sleep 1; done
@@ -38,9 +41,9 @@ up: ## core stack: postgres + mlflow
 	@echo "✅ postgres + mlflow ready, schema applied."
 	@$(MAKE) --no-print-directory ps
 
-down: ## Stop all services (data is preserved, dont close app service)
+down: ## Stop data services (leaves the app container alone)
 	$(COMPOSE) stop postgres mlflow api 2>/dev/null || true
-	@echo "ℹ️  'app' running -- dev container conn is maintained."
+	@echo "ℹ️  'app' left running so the dev container connection survives."
 
 restart: down up ## Restart the kernel stack
 
@@ -50,26 +53,26 @@ ps: ## Service Status
 logs: ## Follow all logs
 	$(COMPOSE) logs -f --tail=100
 
-logs-mlflow: ## mlflow logs
+logs-mlflow: ## Follow mlflow logs only
 	$(COMPOSE) logs -f --tail=100 mlflow
 
-genai-up: ## Open Profile 'genai' (api :8080)
+genai-up: ## Start the genai profile (api on :8080)
 	$(COMPOSE) --profile genai up -d api
 
-genai-down: ## Close Profile 'genai'
+genai-down: ## Stop the genai profile
 	$(COMPOSE) --profile genai stop api
 
-# access
-shell: ## app container bash
+# --------- access ---------
+shell: ## Open a bash shell in the app container
 	$(COMPOSE) exec app bash
 
-db: ## psql (PG* env ready)
+db: ## psql session (PG* variables are already set)
 	psql
 
-db-ready: ## Postgres status
+db-ready: ## Postgres health check
 	@pg_isready && echo "✅ Postgres is ready." || echo "❌ Postgres is not ready."
 
-# quality - ruff
+# --------- quality - ruff ---------
 lint: ## ruff check
 	$(UV) run ruff check .
 
@@ -80,15 +83,16 @@ fmt: ## ruff format + import fix
 test: ## pytest
 	$(UV) run pytest -q
 
-check: lock-check lint test
-
-lock: ## Re-unlock the file (when the pyproject changes)
+lock: ## Re-resolve the lock file (after editing pyproject)
 	$(UV) lock
 
-lock-check: ## Is the lock up to date? (CI)
+lock-check: ## Is the lock file current? (CI gate)
 	$(UV) lock --check
 
-# ------ verify -------
+check: lock-check lint test ## Same gate as CI
+
+# --------- verify ---------
+# Run the full acceptance suite
 verify: ## Phase 0 eligibility criteria
 	@echo "── 1/9 services ────────────────────────────────"
 	@$(COMPOSE) ps --format "{{.Service}}: {{.Status}}"
@@ -100,13 +104,13 @@ verify: ## Phase 0 eligibility criteria
 	  WHERE schema_name IN ('raw','core','ml','genai')" \
 	  | grep -q "core, genai, ml, raw" \
 	  && echo "  ✅ raw, core, ml, genai" \
-	  || (echo "  ❌ missing schemas -> make nuke && make up"; exit 1)
+	  || (echo "  ❌ missing schemas -> make up"; exit 1)
 	@echo "── 4/9 extensions ───────────────────────────"
 	@psql -tAc "SELECT string_agg(extname, ', ' ORDER BY extname) \
 	  FROM pg_extension WHERE extname IN ('vector','pg_trgm')" \
 	  | grep -q "pg_trgm, vector" \
 	  && echo "  ✅ vector, pg_trgm" \
-	  || (echo "  ❌ missing extension -> make nuke && make up"; exit 1)
+	  || (echo "  ❌ missing extensions -> make up"; exit 1)
 	@echo "── 5/9 mlflow backend database ─────────────────"
 	@psql -tAc "SELECT 1 FROM pg_database WHERE datname='mlflow'" | grep -q 1 \
 	  && echo "  ✅ mlflow database exist" || (echo "  ❌ missing"; exit 1)
@@ -123,20 +127,17 @@ verify: ## Phase 0 eligibility criteria
 	@$(UV) run ruff check . && echo "  ✅ ruff clean"
 	@$(UV) run pytest -q
 	@echo ""
-	@echo "🎉 Phase 0 Acceptance Criteria is done."
+	@echo "🎉 Phase 0 Acceptance Criteria pass."
 
-# ------ verify -------
-
-clean: ## Clean Cache/artifact
+# --------- cleanup ---------
+clean: ## Remove caches and build artifacts
 	find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
 	rm -rf .pytest_cache .ruff_cache
 
-nuke: ## WARNING: This will also delete the volumes (pgdata, mlartifacts)
-# delete only data services..
-	$(COMPOSE) --profile genai down -v
-	@echo "⚠️  pgdata ve mlartifacts will be deleted. All DB records and MLflow runs will be deleted."
-	@read -p "Continue? [yes/N] " ans; [ "$$ans" = "yes" ] || (echo "Exit."; exit 1)
+nuke: ## LAST RESORT: delete postgres + mlflow data (try `make up` first)
+	@echo "⚠️ pgdata and mlartifacts will be DELETED. All DB rows and MLflow runs are lost."
+	@read -p "Continue? [yes/N] " a; [ "$$a" = "yes" ] || (echo "aborted."; exit 1)
 	$(COMPOSE) rm -sfv postgres mlflow
 	-docker volume rm $(PROJECT)_pgdata $(PROJECT)_mlartifacts
-	@echo "✅ Cleaned. 'make up' will work again."
+	@echo "✅ Cleaned. Run 'make up' to rebuild. "
 # DO NOT use 'down -v': because it also removes the ‘app’ container, which breaks the dev container connection.

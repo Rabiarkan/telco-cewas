@@ -1,6 +1,6 @@
 # Both Devcontainer and the CLI use the same stack
-# Default services (app, postgres, mlflow) always gets back up
-# ml / genai profiles only run when explicitly requested
+# Default services (app, postgres, mlflow) always start.
+# The genai profile starts only when explicitly requested.
 name: telco-cewas
 
 x-pg-env: &pg-env
@@ -8,8 +8,9 @@ x-pg-env: &pg-env
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-telco}
   POSTGRES_DB: ${POSTGRES_DB:-telco}
 
-x-app-env: &app-env
+x-app-env:
   # SQLAlchemy conn
+  &app-env
   DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-telco}:${POSTGRES_PASSWORD:-telco}@postgres:5432/${POSTGRES_DB:-telco}
   PGHOST: postgres
   PGPORT: "5432"
@@ -41,7 +42,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks: [core]
+    networks: [ core ]
 
   # postgres
   postgres:
@@ -53,12 +54,12 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-telco} -d ${POSTGRES_DB:-telco}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-telco} -d ${POSTGRES_DB:-telco}" ]
       interval: 5s
       timeout: 5s
       retries: 12
       start_period: 10s
-    networks: [core]
+    networks: [ core ]
 
   # mlflow
   mlflow:
@@ -81,16 +82,16 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:5000/health || exit 1"]
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:5000/health || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 20s
-    networks: [core]
+    networks: [ core ]
 
   # profile: genai
   api:
-    profiles: ["genai"]
+    profiles: [ "genai" ]
     build:
       context: .
       dockerfile: docker/Dockerfile.app
@@ -112,12 +113,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks: [core]
+    networks: [ core ]
 
 volumes:
   pgdata:
   mlartifacts:
   uv-cache:
+
 
 networks:
   core:

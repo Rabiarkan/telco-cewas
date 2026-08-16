@@ -1,19 +1,24 @@
+# Keeps the build context minimal.
+#
+# NOT a copy of .gitignore -- the two answer different questions:
+#   .gitignore    : "should this file be versioned?"
+#   .dockerignore : "is this file needed to build an image?"
+# uv.lock answers yes to both. docker-compose.yml is versioned but useless to a build. .env is neither.
+
 *
 
-# Image
-!docker/
-!pyproject.toml
-!uv.lock
+!docker/            # Dockerfiles + entrypoint.mlflow.sh (the only real COPY source today)
+!pyproject.toml     # for the Phase 7 production image: COPY pyproject/uv.lock,
+!uv.lock            # run uv sync, THEN COPY src -- so a code change does not
+!src/               # invalidate the cached dependency layer
 !README.md
-!src/
 
-# allowlist
 **/__pycache__/
 **/*.py[cod]
 **/.ipynb_checkpoints/
 **/.pytest_cache/
 **/.ruff_cache/
 **/.mypy_cache/
-**/.DS_Store
 **/*.egg-info/
 **/.venv/
+**/.DS_Store

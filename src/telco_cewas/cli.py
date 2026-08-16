@@ -20,11 +20,17 @@ def info() -> None:
     typer.echo(f"database_url        : {s.database_url.split('@')[-1]}")
     typer.echo(f"mlflow_tracking_uri : {s.mlflow_tracking_uri}")
     typer.echo(f"anthropic_api_key   : {'set' if s.anthropic_api_key else 'unset'}")
+    typer.echo(f"openai_api_key      : {'set' if s.openai_api_key else 'unset'}")
+    typer.echo(f"embedding           : {s.embedding_model} @ {s.embedding_dimensions}d")
+    typer.echo(
+        f"budget              : ${s.budget_total_usd:.2f} total "
+        f"(${s.budget_embedding_usd:.2f} embed / ${s.budget_generation_usd:.2f} gen)"
+    )
 
 
 @app.command()
 def healthcheck() -> None:
-    """check Postgres connection, schemas and pgvector extension"""
+    """Verify Postgres connection, schemas and pgvector extension"""
     from sqlalchemy import create_engine, text
 
     engine = create_engine(get_settings().database_url, pool_pre_ping=True)

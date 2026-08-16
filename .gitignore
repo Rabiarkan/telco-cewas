@@ -1,14 +1,38 @@
-.env
+# RA will delete
+docs/
+
+
+# --- secrets ------------------------------------------------------------
+.env*
+!.env.example
+
+# --- python -------------------------------------------------------------
 .venv/
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- notebooks ----------------------------------------------------------
 .ipynb_checkpoints/
+
+# --- data ---------------------------------------------------------------
 data/raw/*
 !data/raw/.gitkeep
 data/interim/
+data/processed/
+
+# --- ml artifacts -------------------------------------------------------
 mlruns/
 mlartifacts/
+*.pkl
+*.joblib
+*.onnx
+
+# --- misc ---------------------------------------------------------------
 *.log
 .DS_Store

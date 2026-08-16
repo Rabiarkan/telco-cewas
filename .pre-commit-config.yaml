@@ -1,5 +1,7 @@
+# Run everything before committing to avoid the two-pass loop:
+#   pre-commit run --all-files && git add -u && git commit
 repos:
-  # source of version = pyproject.toml.
+  # One version source: pyproject.toml (K12).
   - repo: local
     hooks:
       - id: ruff-check
@@ -16,13 +18,24 @@ repos:
         types_or: [python, pyi, jupyter]
         require_serial: true
 
+      - id: block-llm-api-keys
+        name: block LLM API keys
+        entry: '(sk-ant-[A-Za-z0-9_-]{20,}|sk-proj-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{32,})'
+        language: pygrep
+        types: [text]
+        exclude: '^\.pre-commit-config\.yaml$'
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
-      - id: check-yaml
+      - id: check-yaml          # docker-compose.yml, this file
+      - id: check-toml          # pyproject.toml -- a syntax error here breaks everything
+      - id: check-merge-conflict
+      - id: check-case-conflict # macOS/Linux filename collisions
+      - id: mixed-line-ending
+        args: [--fix=lf]
       - id: check-added-large-files
         args: [--maxkb=2048]
-      - id: check-merge-conflict
-      - id: detect-private-key
+      - id: detect-private-key  # SSH/PEM only -- API tokens are covered above
