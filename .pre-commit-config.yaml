@@ -1,7 +1,7 @@
 # Run everything before committing to avoid the two-pass loop:
 #   pre-commit run --all-files && git add -u && git commit
 repos:
-  # One version source: pyproject.toml (K12).
+  # One version source: pyproject.toml.
   - repo: local
     hooks:
       - id: ruff-check
