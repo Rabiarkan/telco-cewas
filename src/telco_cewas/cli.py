@@ -1,55 +1,98 @@
-"""
-Project CLI
+"""telco -- project CLI."""
 
-Subcommands will be added as the project progresses:
-    telco db migrate | data ingest | ml train | ml score | genai recommend
-"""
+from pathlib import Path
 
 import typer
 
 from telco_cewas.config import get_settings
 
-app = typer.Typer(help="Telco Churn Early Warning & Action System")
+app = typer.Typer(help="Telco CEWAS", no_args_is_help=True)
+db_app = typer.Typer(help="Schema and data", no_args_is_help=True)
+app.add_typer(db_app, name="db")
 
 
 @app.command()
 def info() -> None:
-    """Active configuration:"""
+    """Show the active configuration with secrets masked."""
     s = get_settings()
-    typer.echo(f"env                 : {s.env}")
-    typer.echo(f"database_url        : {s.database_url.split('@')[-1]}")
-    typer.echo(f"mlflow_tracking_uri : {s.mlflow_tracking_uri}")
-    typer.echo(f"anthropic_api_key   : {'set' if s.anthropic_api_key else 'unset'}")
-    typer.echo(f"openai_api_key      : {'set' if s.openai_api_key else 'unset'}")
-    typer.echo(f"embedding           : {s.embedding_model} @ {s.embedding_dimensions}d")
-    typer.echo(
-        f"budget              : ${s.budget_total_usd:.2f} total "
-        f"(${s.budget_embedding_usd:.2f} embed / ${s.budget_generation_usd:.2f} gen)"
-    )
+    typer.echo(f"env        : {s.env}")
+    typer.echo(f"database   : {s.database_url.split('@')[-1]}")
+    typer.echo(f"mlflow     : {s.mlflow_tracking_uri}")
+    typer.echo(f"anthropic  : {'set' if s.anthropic_api_key else 'unset'}")
+    typer.echo(f"embedding  : {s.embedding_model} @ {s.embedding_dimensions}d (local)")
+    typer.echo(f"budget     : ${s.budget_total_usd:.2f}")
 
 
 @app.command()
 def healthcheck() -> None:
-    """Verify Postgres connection, schemas and pgvector extension"""
-    from sqlalchemy import create_engine, text
+    """Verify schemas and extensions."""
+    from sqlalchemy import text
 
-    engine = create_engine(get_settings().database_url, pool_pre_ping=True)
-    expected = {"raw", "core", "ml", "genai"}
-    with engine.connect() as conn:
-        version = conn.execute(text("SELECT version()")).scalar_one()
-        rows = conn.execute(text("SELECT schema_name FROM information_schema.schemata")).scalars()
-        found = expected & set(rows)
-        has_vector = conn.execute(
-            text("SELECT count(*) FROM pg_extension WHERE extname = 'vector'")
-        ).scalar_one()
+    from telco_cewas.db import get_engine
 
-    typer.echo(f"postgres  : {version.split(',')[0]}")
-    typer.echo(f"schemas   : {sorted(found)}  (expected {sorted(expected)})")
-    typer.echo(f"pgvector  : {'ok' if has_vector else 'MISSING'}")
+    with get_engine().connect() as conn:
+        schemas = set(
+            conn.execute(text("SELECT schema_name FROM information_schema.schemata")).scalars()
+        )
+        extensions = set(conn.execute(text("SELECT extname FROM pg_extension")).scalars())
 
-    if found != expected or not has_vector:
+    ok = {"raw", "core", "ml", "genai"} <= schemas and {"vector", "pg_trgm"} <= extensions
+    typer.echo(f"schemas    : {sorted({'raw', 'core', 'ml', 'genai'} & schemas)}")
+    typer.echo(f"extensions : {sorted({'vector', 'pg_trgm'} & extensions)}")
+    if not ok:
         raise typer.Exit(code=1)
-    typer.echo("healthcheck: OK")
+    typer.secho("ok", fg=typer.colors.GREEN)
+
+
+@db_app.command("apply")
+def db_apply() -> None:
+    """Apply every SQL file in db/sql/ (idempotent)."""
+    from telco_cewas.db import apply_all, get_engine
+
+    failed = False
+    for r in apply_all(get_engine()):
+        if r.error is None:
+            typer.echo(f"  ok   {r.name}")
+        else:
+            typer.secho(f"  FAIL {r.name}\n       {r.error}", fg=typer.colors.RED)
+            failed = True
+    if failed:
+        raise typer.Exit(code=1)
+
+
+@db_app.command("reset")
+def db_reset(yes: bool = typer.Option(False, "--yes")) -> None:
+    """Drop all project schemas and re-apply."""
+    from telco_cewas.db import apply_all, get_engine, reset
+
+    if not yes:
+        typer.confirm("Drop raw/core/ml/genai and all data?", abort=True)
+
+    engine = get_engine()
+    reset(engine)
+    typer.echo("  dropped schemas")
+    for r in apply_all(engine):
+        if r.error is None:
+            typer.echo(f"  ok   {r.name}")
+        else:
+            typer.secho(f"  FAIL {r.name}\n       {r.error}", fg=typer.colors.RED)
+            raise typer.Exit(code=1)
+
+
+@db_app.command("ingest")
+def db_ingest(path: Path = typer.Option(Path("data/raw"), "--path", "-p")) -> None:
+    """Load the source CSVs into raw (truncate and reload)."""
+    from telco_cewas.db import get_engine, load_all
+
+    failed = False
+    for r in load_all(get_engine(), path):
+        if r.error is None:
+            typer.echo(f"  ok   raw.{r.table:<13} {r.rows:>6,} rows")
+        else:
+            typer.secho(f"  FAIL raw.{r.table}\n       {r.error}", fg=typer.colors.RED)
+            failed = True
+    if failed:
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

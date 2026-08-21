@@ -10,7 +10,6 @@ dependencies = [
     "pydantic-settings>=2.6",
     "sqlalchemy>=2.0.36",
     "psycopg[binary]>=3.2",
-    "pandas>=2.2",
     "typer>=0.15",
     "structlog>=24.4",
 ]
@@ -20,11 +19,12 @@ telco = "telco_cewas.cli:app"
 
 # Matches Compose profiles:
 #   default     -> dev     | make sync
-#   ml          -> ml      | make sync-ml
+#   ml          -> ml      | make ml (~400MB, only when doing ML work)
 #   genai       -> genai   | make sync-genai
 [dependency-groups]
 dev = ["ruff>=0.8", "pytest>=8.3", "pytest-cov>=6.0", "pre-commit>=4.0"]
 ml = [
+    "pandas>=2.2",
     "scikit-learn>=1.5",
     "lightgbm>=4.5",
     "shap>=0.46",
@@ -38,7 +38,7 @@ ml = [
 ]
 genai = [
     "anthropic>=0.40",
-    "openai>=1.57",
+    "fastembed>=0.4",
     "pgvector>=0.3.6",
     "tiktoken>=0.8",
     "fastapi>=0.115",
@@ -53,6 +53,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/telco_cewas"]
+artifacts = ["src/telco_cewas/db/sql/*.sql"]
 
 # ruff
 [tool.ruff]
@@ -76,8 +77,11 @@ select = [
 ]
 ignore = ["E501"]
 
+unfixable = ["F401", "F841"]
+
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ARG"]
+"src/telco_cewas/cli.py" = ["B008"]
 
 "notebooks/*.ipynb" = ["E402", "B018", "F401"]
 
